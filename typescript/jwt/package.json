@@ -1,0 +1,42 @@
+{
+  "name": "typescript-jwt",
+  "version": "0.0.1",
+  "description": "A reference implementation of JWT handling in TypeScript",
+  "keywords": [
+    "TypeScript",
+    "JWT",
+    "Express",
+    "Node.js"
+  ],
+  "author": "Robert McKenney <robert@mckenney.ca>",
+  "license": "MIT",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev:tsc": "tsc --watch --preserveWatchOutput",
+    "dev:node": "node --enable-source-maps --watch dist/server.js",
+    "dev": "pnpm run \"/dev:/\"",
+    "test": "JITI_SOURCE_MAPS=true node --require jiti/register --test src/**/*.test.ts",
+    "lint": "eslint src/**/*.ts"
+  },
+  "packageManager": "pnpm@9.1.4+sha512.9df9cf27c91715646c7d675d1c9c8e41f6fce88246f1318c1aa6a1ed1aeb3c4f032fcdf4ba63cc69c4fe6d634279176b5358727d8f2cc1e65b65f43ce2f8bfb0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.7.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.11",
+    "eslint": "9.x",
+    "globals": "^15.8.0",
+    "jiti": "^1.21.6",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^7.16.1"
+  }
+}
