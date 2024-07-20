@@ -314,4 +314,104 @@ You can now open your browser and navigate to `http://localhost:3000/ping` to se
 > Congratulations! 
 > You have successfully set up the base TypeScript project with Express.js. With that in place, you can now start building JWT authentication handlers.
 
+### 1.10. Add database services with Docker
+You will need a database to store user information and tokens. Let's use  PostgreSQL. You will also need a fast in-memory database for managing the revoked tokens. Let's use Redis.
+
+Create a new file named `docker-compose.yml` in the root of your project folder with the following content:
+
+```yaml
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: authentication_tutorial
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+<details>
+<summary>Explanation</summary>
+
+  •	version: Omitted. The latest compose schema version is automatically used.
+
+  •	services: Defines the services to be run.
+    •	postgres:
+      •	image: Specifies the Docker image to use for Postgres.
+      •	container_name: Sets a custom name for the container.
+      •	environment: Environment variables for the Postgres container.
+        •	POSTGRES_USER: The username for the Postgres database.
+        •	POSTGRES_PASSWORD: The password for the Postgres database.
+        •	POSTGRES_DB: The name of the database to be created.
+      •	ports: Maps the container port 5432 to the host port 5432.
+      •	volumes: Mounts a named volume for persistent storage.
+    •	redis:
+      •	image: Specifies the Docker image to use for Redis.
+      •	container_name: Sets a custom name for the container.
+      •	ports: Maps the container port 6379 to the host port 6379.
+      •	volumes: Mounts a named volume for persistent storage.
+    
+  •	volumes: Defines named volumes for persistent storage, ensuring that the data is not lost when the containers are removed.
+	
+</details>
+
+### 1.10.1. Start the database services
+You can start the database services with the following command:
+
+```bash
+docker compose up -d
+```
+
+You can check the status of the running containers with the following command:
+
+```bash
+docker ps
+```
+
+Both containers should be running and have the status `Up`. If not, check the logs for each container with the following commands:
+
+```bash
+docker compose logs postgress
+docker compose logs redis
+```
+If everthing is working as expected, you should see `ready to accept connections` near the end of the logs for each container.
+
+To stop the containers, you can use the following command:
+
+```bash
+docker compose down
+```
+
+To stop the containers and remove the volumes, you can use the following command:
+
+```bash
+docker compose down -v
+```
+
+
+### 1.11. Commit your changes
+Now that you have set up the base project, you can commit your changes to the repository.
+
+```bash
+git add .
+git commit -m "feat: Set up the base project"
+```
+
+
 [Next step](./step-2.md)
