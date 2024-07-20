@@ -1,9 +1,13 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-const { PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE } = process.env
+const host = process.env.PG_HOST || 'localhost'
+const port = process.env.PG_PORT || '5432'
+const user = process.env.PG_USER || 'dev_user'
+const password = process.env.PG_PASSWORD || 'dev_password'
+const database = process.env.PG_DATABASE || 'authentication_tutorial'
 
-const connectionString = `postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}`
+export const connectionString = `postgres://${user}:${password}@${host}:${port}/${database}`
 
 const querryClient = postgres(connectionString)
 

@@ -19,7 +19,9 @@
     "dev:node": "node --enable-source-maps --watch dist/server.js",
     "dev": "pnpm run \"/dev:/\"",
     "test": "JITI_SOURCE_MAPS=true node --require jiti/register --test src/**/*.test.ts",
-    "lint": "eslint src/**/*.ts"
+    "lint": "eslint src/**/*.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "packageManager": "pnpm@9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903",
   "engines": {
@@ -29,7 +31,8 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.32.0",
     "express": "^4.19.2",
-    "postgres": "^3.4.4"
+    "postgres": "^3.4.4",
+    "uuidv7": "^1.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.7.0",
