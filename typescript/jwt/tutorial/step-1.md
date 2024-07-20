@@ -8,7 +8,7 @@
 The following instructions will guide your through setting up the base TypeScript project that you will use for the JWT tutorial. There is nothing particular to JWTs in this step, but it is important to have a good foundation to build upon.
 
 > [!TIP]
-> You can save time by copying my [Express TypeScript template repository]().
+> You can save time by copying my [Express TypeScript template repository](https://github.com/rlmckenney/typescript-express-quick-start).
 
 ### 1.1. Create a new project folder structure
 
