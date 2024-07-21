@@ -58,7 +58,8 @@ When using JWTs, it's important to consider security best practices to prevent c
 
 ## Next Steps
 1. [Prepare the Project](step-1.md)
-2. Create a JWT
-3. Verify a JWT
-4. Refresh a JWT
-5. Revoke a JWT
+2. [Preapare the database](step-2.md)
+3. Create a JWT
+4. Verify a JWT
+5. Refresh a JWT
+6. Revoke a JWT

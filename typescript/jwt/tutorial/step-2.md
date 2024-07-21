@@ -13,7 +13,7 @@ You may choose a different approach based on your requirements. The important th
 
 ### 2.1 Tool Options
 
-1. Use a tool like `pgAdmin` or `DBeaver` to create the tables manually.
+1. Use a tool like `TablePlus`, `pgAdmin` or `DBeaver` to create the tables manually.
 2. Use the base `pg` library to create the tables programmatically.
 3. Use an Object Relational Mapping (ORM) library like [Prisma](https://www.prisma.io) or [drizzle](https://orm.drizzle.team/)
 
@@ -23,7 +23,7 @@ For this tutorial, use Drizzle to create the tables programmatically.
 
 > [!NOTE]
 > This is not a tutorial on how to use Drizzle. The focus is on handling JWTs in TypeScript. Drizzle is used here to simplify the database setup. I'll cover the basics of using Drizzle in this context. 
-> For more information on Drizzle, refer to the excellent [Drizzle Documentation](https://orm.drizzle.team/).
+> For more information on Drizzle, refer to the official [Drizzle Documentation](https://orm.drizzle.team/).
 
 ### 2.2.1 Install Drizzle
 
@@ -76,12 +76,12 @@ import './load-env.js'
 
 The `postgres` library is used to create a connection to the database. That querry client is passed to the `drizzle` function to create the ORM instance.
 
-Create a new file called `src/db/index.ts` and add the following code:
+> [!IMPORTANT]
+> Drizzle-Kit manages the database schema migrations. It runs TypeScript directly without the `tsc` compiler. To make sure that there are no module resolution issues, you need to create a separate file to construct the database connection string.
+
+Create a new file called `src/db/pg-url.ts` and add the following code:
 
 ```typescript
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-
 const host = process.env.PG_HOST || 'localhost'
 const port = process.env.PG_PORT || '5432'
 const user = process.env.PG_USER || 'dev_user'
@@ -89,6 +89,14 @@ const password = process.env.PG_PASSWORD || 'dev_password'
 const database = process.env.PG_DATABASE || 'authentication_tutorial'
 
 export const connectionString = `postgres://${user}:${password}@${host}:${port}/${database}`
+```
+
+Then create a new file called `src/db/index.ts` and add the following code:
+
+```typescript
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { connectionString } from './pg-url.js'
 
 const querryClient = postgres(connectionString)
 
@@ -115,14 +123,14 @@ This would be a good time to commit your changes.
 Now you can remove the test code from the `server.ts` file.
 
 ### 2.3 Create database schema
-Now that you have a working database connection, you can define the database  schema for each table. 
+Now that you have a working database connection, you can define the database schema for each table. 
 
 Let's start by creating a table to store user profiles with a simple set of attributes:
   - `id` - a unique identifier for the user
   - `firstName` - the user's first name
   - `lastName` - the user's last name
   - `email` - the user's email address, which should be unique
-
+All fields are required.
 
 #### 2.3.1 Install the UUID7 Library
 I like to use UUIDs for primary keys in my tables. This provides better scalability and security than using auto-incrementing integers. UUID version 7 is a good choice because it is time-based and sortable. It uses half the storage space of UUID version 4 and is more secure than UUID version 1.
@@ -139,7 +147,7 @@ pnpm add uuid7
 Create a `src/db/schema` directory and add a new file called `user.ts` with the following code:
 
 ```typescript
-import { boolean, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 import { uuidv7 } from 'uuidv7'
 
 export const users = pgTable('users', {
@@ -154,18 +162,20 @@ export const users = pgTable('users', {
 
 The user credentials table will store the user's loginName (which may or may not be their email) and a password hash. This table will be used to authenticate users and link them to their full profile.
 
+> [!NOTE]
+> Storing the login credentials in a separate table from the user profile is a common pattern. It allows you to easily add additional authentication methods (e.g., OAuth, SAML) without modifying the user profile schema. It is also helpful with multi-tenant applications where a single user profile can login to multiple tenants (we will explore this later in the tutorial).
+
 This could go in a separate file, but for simplicity, just add it to the same file as the user profile schema.
 
 ```typescript
 
-export const userCredentials = pgTable('user_credentials', {
+export const loginCredentials = pgTable('login_credentials', {
   id: uuid('id').$defaultFn(uuidv7).primaryKey(),
   userId: uuid('user_id')
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' })
     .notNull(),
   loginName: varchar('login_name', { length: 256 }).unique().notNull(),
   passwordHash: varchar('password', { length: 256 }).notNull(),
-  isSuspended: boolean('is_suspended').notNull().default(false),
 })
 
 ```
@@ -184,6 +194,41 @@ updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(
 ),
 ```
 
+#### 2.3.5 Define the object relationships
+The schema definitions include the `userId` column in the `loginCredentials` table, which references the `id` column in the `users` table. This declares the foreign key relationship between the two tables at the database level. This would be enough to enforce referential integrity in the database, and will work just fine with the base Drizzle QueryBuilder.
+
+However, to get the full benefit of the Drizzle ORM querries, you need to also define the relationships at the object level. For now, define the relationship between `loginCredentials` and `users` as one-to-one. 
+
+Add the following code to the `/src/db/schema/user.ts` file:
+
+```typescript
+export const usersRelations = relations(users, ({ one }) => ({
+  loginCredentials: one(loginCredentials),
+}))
+
+export const loginCredentialsRelations = relations(
+  loginCredentials,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [loginCredentials.userId],
+      references: [users.id],
+    }),
+  }),
+)
+```
+
+#### 2.3.6 Add the schema to the database connection
+Now that you have defined the schema for the `users` and `loginCredentials` tables, you need to add them to the database connection. Modify the `/src/db/index.ts` file to include the schema definitions:
+
+```typescript
+//...other imports
+import * as usersSchema from './schema/users.js'
+
+//...other code
+
+export const db = drizzle(querryClient, { schema: usersSchema })
+```
+
 ### 2.4 Deploy the table definitions to your database
 
 You can use the `drizzle-kit` CLI to generate a migration script that will create the tables in your database. First you need to create a configuration file for the CLI.
@@ -194,7 +239,7 @@ At the root of your project, create a file called `drizzle.config.ts` and add th
 ```typescript
 import './src/load-env.ts'
 import { defineConfig } from 'drizzle-kit'
-import { connectionString } from './src/db/index.ts'
+import { connectionString } from './src/db/pg-url.ts'
 
 export default defineConfig({
   dialect: 'postgresql',       // database dialect
@@ -219,7 +264,7 @@ Add two new convenience scripts to the `package.json` file:
 ```
 
 #### 2.4.2 Create a migration script
-Run `pnpm run db:generate` to create the migration script. This will create a new directory called `drizzle` with a sequentially numbered migration script (SQL) that will create the tables in your database.
+Run `pnpm db:generate` to create the migration script. This will create a new directory called `drizzle` with a sequentially numbered migration script (SQL) that will create the tables in your database.
 
 > [!WARNING]
 > Do not modify the migration script. It is generated automatically and should not be edited by hand. Especially do not add or remove files from the `drizzle` directory. See the docs for more information on how to manage migrations.
@@ -228,15 +273,14 @@ Run `pnpm run db:generate` to create the migration script. This will create a ne
   <summary>Expand to see the generated migration script</summary>
 
 ```sql
-CREATE TABLE IF NOT EXISTS "user_credentials" (
+CREATE TABLE IF NOT EXISTS "login_credentials" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"login_name" varchar(256) NOT NULL,
 	"password" varchar(256) NOT NULL,
-	"is_suspended" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp (3) DEFAULT now(),
 	"updated_at" timestamp (3),
-	CONSTRAINT "user_credentials_login_name_unique" UNIQUE("login_name")
+	CONSTRAINT "login_credentials_login_name_unique" UNIQUE("login_name")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "users" (
@@ -250,7 +294,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_credentials" ADD CONSTRAINT "user_credentials_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "login_credentials" ADD CONSTRAINT "login_credentials_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -258,4 +302,4 @@ END $$;
 
 #### 2.4.3 Run the migration script
 
-Run `pnpm run db:migrate` to execute the migration script and create the tables in your database. You can inspect the database with a tool like [TablePlus](https://tableplus.com/) to verify that the tables were created successfully.
+Run `pnpm db:migrate` to execute the migration script and create the tables in your database. You can inspect the database with a tool like [TablePlus](https://tableplus.com/) to verify that the tables were created successfully.

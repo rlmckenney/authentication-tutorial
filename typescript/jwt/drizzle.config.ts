@@ -1,6 +1,6 @@
 import './src/load-env.ts'
 import { defineConfig } from 'drizzle-kit'
-import { connectionString } from './src/db/index.ts'
+import { connectionString } from './src/db/pg-url.ts'
 
 export default defineConfig({
   dialect: 'postgresql', // database dialect
