@@ -2,6 +2,8 @@ import { createServer } from 'node:http'
 import express from 'express'
 import './load-env.js'
 
+import { userRouter } from './user/router.js'
+
 /**
  * Create a simple Express router application.
  */
@@ -9,6 +11,8 @@ const app = express()
 app.get('/ping', (req, res) => {
   res.send('pong')
 })
+app.use(express.json())
+app.use('/api/users', userRouter)
 
 /**
  * Create HTTP server.
