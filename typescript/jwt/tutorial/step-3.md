@@ -620,12 +620,101 @@ This method could be simplified by using the `findUserById` helper function. How
 
 </details>
 
+### 3.2.12 Clean up the user controller
+
 > [!TIP]
 > We fell into the trap of premature abstraction. Now that we have fleshed out the implementation for all of the CRUD methods, it turns out that the `findUserById` helper function is only used in one place.
 > It is a better practice wait until you find yourself repeating the same code in multiple places before you abstract it into a helper function. Sorry, I led you astray! (kind of on purpose, but still!)
 
-### 3.2.12 Clean up the user controller
-
 OK. Lets get rid of the `findUserById` helper function and refactor the `show` method to use the `db.query.users.findFirst` method directly.
 
 Then let look for any other opportunities to clean up the code.
+
+There is some inconsistency in the variable names used to store the result of the database queries. Result(s) is OK, but generic. This conroller is dealing with Users, and the database queries are all returning arrays of Users. Let's use more descriptive variable names related to the action, i.e. `deletedUsers`, `updatedUsers`, `insertedUsers`, or `foundUsers`.
+
+<details>
+<summary>Complete /src/user/controller.ts</summary>
+
+```typescript
+import type { Request, Response } from 'express'
+import { eq } from 'drizzle-orm'
+import { db } from '../db/index.js'
+import { handleError } from '../utils/controller-utils.js'
+import { ResourceNotFoundException } from '../utils/exceptions.js'
+import {
+  users,
+  insertUserSchema,
+  selectUserSchema,
+  updateUserSchema,
+  userIdSchema,
+} from './schema.js'
+
+export async function index(req: Request, res: Response) {
+  try {
+    const foundUsers = await db.query.users.findMany()
+    return res.json({ data: foundUsers })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+
+export async function store(req: Request, res: Response) {
+  try {
+    const params = insertUserSchema.parse(req.body)
+    const insertedUsers = await db.insert(users).values(params).returning()
+    return res.json({ data: selectUserSchema.parse(insertedUsers[0]) })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+
+export async function show(req: Request, res: Response) {
+  try {
+    const id = userIdSchema.parse(req.params.id)
+    const foundUser = await db.query.users.findFirst({
+      where: eq(users.id, id),
+    })
+    if (!foundUser) throw new ResourceNotFoundException('User', `id: ${id}`)
+    return res.json({ data: foundUser })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+
+export async function update(req: Request, res: Response) {
+  try {
+    const id = userIdSchema.parse(req.params.id)
+    const params = updateUserSchema.parse(req.body)
+    const updatedUsers = await db
+      .update(users)
+      .set(params)
+      .where(eq(users.id, id))
+      .returning()
+    if (updatedUsers.length === 0) {
+      throw new ResourceNotFoundException('User', `id: ${id}`)
+    }
+    return res.json({ data: updatedUsers[0] })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+
+export async function destroy(req: Request, res: Response) {
+  try {
+    const id = userIdSchema.parse(req.params.id)
+    const deletedUsers = await db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning()
+    if (deletedUsers.length === 0) {
+      throw new ResourceNotFoundException('User', `id: ${id}`)
+    }
+    return res.json({ data: deletedUsers[0] })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+
+```
+
+</details>

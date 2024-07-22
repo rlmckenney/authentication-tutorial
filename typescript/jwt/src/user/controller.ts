@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
+import { handleError } from '../utils/controller-utils.js'
+import { ResourceNotFoundException } from '../utils/exceptions.js'
 import {
   users,
   insertUserSchema,
@@ -8,13 +10,11 @@ import {
   updateUserSchema,
   userIdSchema,
 } from './schema.js'
-import { handleError } from '../utils/controller-utils.js'
-import { ResourceNotFoundException } from '../utils/exceptions.js'
 
 export async function index(req: Request, res: Response) {
   try {
-    const users = await db.query.users.findMany()
-    return res.json({ data: users })
+    const foundUsers = await db.query.users.findMany()
+    return res.json({ data: foundUsers })
   } catch (error) {
     handleError(error, res)
   }
@@ -23,9 +23,8 @@ export async function index(req: Request, res: Response) {
 export async function store(req: Request, res: Response) {
   try {
     const params = insertUserSchema.parse(req.body)
-    const results = await db.insert(users).values(params).returning()
-    const data = selectUserSchema.parse(results[0])
-    return res.json({ data })
+    const insertedUsers = await db.insert(users).values(params).returning()
+    return res.json({ data: selectUserSchema.parse(insertedUsers[0]) })
   } catch (error) {
     handleError(error, res)
   }
@@ -33,8 +32,12 @@ export async function store(req: Request, res: Response) {
 
 export async function show(req: Request, res: Response) {
   try {
-    const user = await findUserById(req)
-    return res.json({ data: user })
+    const id = userIdSchema.parse(req.params.id)
+    const foundUser = await db.query.users.findFirst({
+      where: eq(users.id, id),
+    })
+    if (!foundUser) throw new ResourceNotFoundException('User', `id: ${id}`)
+    return res.json({ data: foundUser })
   } catch (error) {
     handleError(error, res)
   }
@@ -44,15 +47,15 @@ export async function update(req: Request, res: Response) {
   try {
     const id = userIdSchema.parse(req.params.id)
     const params = updateUserSchema.parse(req.body)
-    const result = await db
+    const updatedUsers = await db
       .update(users)
       .set(params)
       .where(eq(users.id, id))
       .returning()
-    if (result.length === 0) {
+    if (updatedUsers.length === 0) {
       throw new ResourceNotFoundException('User', `id: ${id}`)
     }
-    return res.json({ data: result[0] })
+    return res.json({ data: updatedUsers[0] })
   } catch (error) {
     handleError(error, res)
   }
@@ -61,22 +64,15 @@ export async function update(req: Request, res: Response) {
 export async function destroy(req: Request, res: Response) {
   try {
     const id = userIdSchema.parse(req.params.id)
-    const result = await db.delete(users).where(eq(users.id, id)).returning()
-    if (result.length === 0) {
+    const deletedUsers = await db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning()
+    if (deletedUsers.length === 0) {
       throw new ResourceNotFoundException('User', `id: ${id}`)
     }
-    return res.json({ data: result[0] })
+    return res.json({ data: deletedUsers[0] })
   } catch (error) {
     handleError(error, res)
   }
-}
-
-// Helper function fetch a user by id based on the request params.
-async function findUserById(req: Request) {
-  const id = userIdSchema.parse(req.params.id)
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, id),
-  })
-  if (!user) throw new ResourceNotFoundException('User', `id: ${id}`)
-  return user
 }
