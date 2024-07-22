@@ -3,6 +3,7 @@ import express from 'express'
 import './load-env.js'
 
 import { userRouter } from './user/router.js'
+import { loginCredentialRouter } from './login-credential/router.js'
 
 /**
  * Create a simple Express router application.
@@ -13,6 +14,7 @@ app.get('/ping', (req, res) => {
 })
 app.use(express.json())
 app.use('/api/users', userRouter)
+app.use('/api/login-credentials', loginCredentialRouter)
 
 /**
  * Create HTTP server.
