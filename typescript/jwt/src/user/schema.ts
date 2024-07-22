@@ -59,6 +59,8 @@ export const insertUserSchema = createInsertSchema(users, {
   email: true,
 })
 
+export const updateUserSchema = insertUserSchema.partial()
+
 // Schema for selecting a user - can be used to validate API responses
 // optionallyoOmit createdAt and updatedAt fields from the response
 // by calling selectUserSchema.parse(result) in the controller method.
@@ -66,3 +68,6 @@ export const selectUserSchema = createSelectSchema(users).omit({
   createdAt: true,
   updatedAt: true,
 })
+
+// Schema for parsing input params when selecting a user by ID
+export const userIdSchema = z.string().uuid()

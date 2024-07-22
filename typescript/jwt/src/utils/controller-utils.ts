@@ -1,5 +1,10 @@
 import type { Response } from 'express'
-import { isPostgresError, isError, isZodError } from './type-guards.js'
+import {
+  isPostgresError,
+  isError,
+  isZodError,
+  isHttpError,
+} from './type-guards.js'
 
 /**
  * Error handler for controller route handler methods
@@ -24,6 +29,12 @@ export function handleError(error: unknown, res: Response) {
     return res
       .status(500)
       .json({ errors: [{ title: 'Database Error', message: error.detail }] })
+  }
+
+  if (isHttpError(error)) {
+    return res
+      .status(error.statusCode)
+      .json({ errors: [{ title: error.status, message: error.message }] })
   }
 
   if (isError(error)) {

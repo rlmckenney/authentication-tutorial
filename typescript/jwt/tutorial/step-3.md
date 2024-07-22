@@ -444,3 +444,188 @@ export function handleError(error: unknown, res: Response) {
  // ... rest of the function
 
 ```
+
+### 3.2.10 Complete the other CRUD methods
+
+OK, now that you have the `store` method refactored, you can apply the same pattern to the other CRUD methods. For the sake of time, I will provide the final code for the `show`, `update`, and `destroy` methods below.
+
+First define a zod schema for the `user.id` parameter. Add this line to the botton of the `src/user/schema.ts` file and then import it in the `controller.ts` file.
+
+```typescript
+// Schema for parsing input params when selecting a user by ID
+export const userIdSchema = z.string().uuid()
+```
+
+Each of the following methods will use the `userIdSchema` to parse the `id` parameter from the request params and then try to retrieve the user from the database. Rather than repeating the same validation and lookup logic in each method, you can create a helper function to handle the common logic.
+
+Add the following helper function to the botton of the `src/user/controller.ts` file:
+
+```typescript
+// Helper function fetch a user by id based on the request params.
+async function findUserById(req: Request) {
+  const id = userIdSchema.parse(req.params.id)
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, id),
+  })
+  if (!user) throw new ResourceNotFoundException('User', `id: ${id}`)
+  return user
+}
+
+```
+
+> [!IMPORTANT]
+> The `ResourceNotFoundException` is a custom error class that you will need to define in the `src/utils/exceptions.ts` file. You will also need a new type guard for this error class in the `src/utils/type-guards.ts` file, and update the `handleError` function to handle this new error type.
+
+<details>
+<summary>src/utils/exceptions.ts</summary>
+
+```typescript
+export class HTTPException extends Error {
+  public statusCode: number
+  public status: string
+
+  constructor(statusCode: number, status: string, message: string) {
+    super(message) // Call the constructor of the base Error class
+    this.statusCode = statusCode
+    this.status = status
+
+    // Set the prototype explicitly (needed when extending built-in classes)
+    Object.setPrototypeOf(this, HTTPException.prototype)
+
+    // Maintain proper stack trace (only in V8 environments like Node.js)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor)
+    }
+  }
+}
+
+export class ResourceNotFoundException extends HTTPException {
+  constructor(resource: string, query: string) {
+    const message = `${resource} not found with ${query}`
+    super(404, 'Resource Not Found', message)
+
+    // Set the prototype explicitly
+    Object.setPrototypeOf(this, ResourceNotFoundException.prototype)
+  }
+}
+
+```
+
+</details>
+
+<details>
+<summary>src/utils/type-guards.ts</summary>
+
+```typescript
+
+export function isHttpError(value: unknown): value is HTTPException {
+  return value instanceof HTTPException
+}
+
+```
+
+</details>
+
+<details>
+<summary>src/utils/controller-utils.ts</summary>
+
+```typescript
+
+if (isHttpError(error)) {
+    return res
+      .status(error.statusCode)
+      .json({ errors: [{ title: error.status, message: error.message }] })
+  }
+
+```
+
+</details>
+
+
+### 3.2.11 Implement the show, update, and destroy methods
+
+<details>
+<summary>user/controller.show</summary>
+
+```typescript
+export async function show(req: Request, res: Response) {
+  try {
+    const user = await findUserById(req)
+    return res.json({ data: user })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>user/controller.update</summary>
+
+Drizzle's `update` API matches the underlying SQL UPDATE statement. This allows you to set only the fileds that have new values. This fits well with the PATCH method in RESTful APIs, which allows clients to send partial resource representations to update only the fields that have changed.
+
+You will want a new Zod schema to validate the request body for the `update` method. Add the following schema to the `src/user/schema.ts` file:
+
+```typescript
+export const updateUserSchema = insertUserSchema.partial()
+```
+This schema is similar to the `insertUserSchema`, but it allows for partial objects. This means that the client can send only the fields that need to be updated, rather than the entire user object.
+
+Import that in the `src/user/controller.ts` file and implement the `update` method:
+
+```typescript
+export async function update(req: Request, res: Response) {
+  try {
+    const id = userIdSchema.parse(req.params.id)
+    const params = updateUserSchema.parse(req.body)
+    const result = await db
+      .update(users)
+      .set(params)
+      .where(eq(users.id, id))
+      .returning()
+    if (result.length === 0) {
+      throw new ResourceNotFoundException('User', `id: ${id}`)
+    }
+    return res.json({ data: result[0] })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>user/controller.destroy</summary>
+
+```typescript
+export async function destroy(req: Request, res: Response) {
+  try {
+    const id = userIdSchema.parse(req.params.id)
+    const result = await db.delete(users).where(eq(users.id, id)).returning()
+    if (result.length === 0) {
+      throw new ResourceNotFoundException('User', `id: ${id}`)
+    }
+    return res.json({ data: result[0] })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+> [!NOTE]
+> The `destroy` method returns the deleted user object in the response. This is a common pattern in RESTful APIs. The client can use the response to confirm that the resource was deleted successfully.
+
+This method could be simplified by using the `findUserById` helper function. However, that would have required two database calls. This version only makes one call to the database. The trade-off is that the error handling is a bit more verbose in exchange for better performance.
+
+</details>
+
+> [!TIP]
+> We fell into the trap of premature abstraction. Now that we have fleshed out the implementation for all of the CRUD methods, it turns out that the `findUserById` helper function is only used in one place.
+> It is a better practice wait until you find yourself repeating the same code in multiple places before you abstract it into a helper function. Sorry, I led you astray! (kind of on purpose, but still!)
+
+### 3.2.12 Clean up the user controller
+
+OK. Lets get rid of the `findUserById` helper function and refactor the `show` method to use the `db.query.users.findFirst` method directly.
+
+Then let look for any other opportunities to clean up the code.
