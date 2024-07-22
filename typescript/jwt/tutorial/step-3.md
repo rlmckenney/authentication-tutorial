@@ -251,12 +251,35 @@ import { isPostgresError, isError } from './type-guards.js'
  */
 export function handleError(error: unknown, res: Response) {
   if (isPostgresError(error)) {
-    return res.status(400).json({ error: error.detail })
+    if (error.code === '23505') {
+      return res.status(400).json({
+        errors: [
+          {
+            title: 'Validation Error',
+            message: 'That email is already registered.',
+          },
+        ],
+      })
+    }
+    return res
+      .status(500)
+      .json({ errors: [{ title: 'Database Error', message: error.detail }] })
   }
+
   if (isError(error)) {
-    return res.status(400).json({ error: error.message })
+    return res
+      .status(500)
+      .json({ errors: [{ title: 'Server Error', message: error.message }] })
   }
-  return res.status(500).json({ error: 'Sorry, an unexpected error occured.' })
+
+  return res.status(500).json({
+    errors: [
+      {
+        title: 'Server Error',
+        message: 'Sorry, an unexpected error occured.',
+      },
+    ],
+  })
 }
 
 ```
@@ -310,3 +333,114 @@ export const db = drizzle(querryClient, { schema: { ...userSchema } })
 ```
 > [!TIP]
 > You can use the `...` spread operator to merge multiple imported schemas into a single object.
+
+### 3.2.9 Parse the request body with Zod
+
+Rule number one when building APIs: never trust the client. Always validate the data coming from the client. You can use a library like [Zod](https://zod.dev/) to provide runtime type checking and validation for your data. There is a handy [Zod plugin for Drizzle](https://orm.drizzle.team/docs/zod).
+
+First, install Zod:
+
+```bash
+pnpm add zod drizzle-zod
+```
+
+Then, update the `src/user/schema.ts` file to use Zod:
+
+```typescript
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
+
+// Schema for inserting a user - can be used to validate API requests
+export const insertUserSchema = createInsertSchema(users);
+
+// Schema for selecting a user - can be used to validate API responses
+export const selectUserSchema = createSelectSchema(users);
+
+```
+
+You can enhance the `insertUserSchema` with more validation rules by passing an options object as the second parameter. Let's require the `email` field to conform to an email address format and normalize it to lowercase. It is also a good idea to trim leading and trailing whitespace from all `string` fields.
+
+```typescript
+export const insertUserSchema = createInsertSchema(users, {
+  email: z.string().trim().toLowerCase().email().max(256)
+})
+```
+
+Let's apply some min/max size constraints to the name fields.
+```typescript
+export const insertUserSchema = createInsertSchema(users, {
+  firstName: z.string().trim().min(1).max(256),
+  lastName: z.string().trim().min(1).max(256),
+  email: z.string().trim().toLowerCase().email().max(256)
+})
+```
+
+Zod also provides pick and omit methods to select or exclude fields from the schema. You can use these methods to limit the fields that can be inserted or returned.
+
+```typescript
+// Schema for inserting a user - can be used to validate API requests
+export const insertUserSchema = createInsertSchema(users, {
+  firstName: z.string().trim().min(1).max(256),
+  lastName: z.string().trim().min(1).max(256),
+  email: z.string().trim().toLowerCase().email().max(256),
+}).pick({
+  firstName: true,
+  lastName: true,
+  email: true,
+})
+
+// Schema for selecting a user - can be used to validate API responses
+export const selectUserSchema = createSelectSchema(users).omit({
+  createdAt: true,
+  updatedAt: true,
+})
+```
+
+Now you can use the `insertUserSchema` to validate the request body in the `store` method:
+
+```typescript
+// update the import statement
+import { users, insertUserSchema, selectUserSchema } from './schema.js'
+// ...
+export async function store(req: Request, res: Response) {
+  try {
+    const params = insertUserSchema.parse(req.body)
+    const results = await db.insert(users).values(params).returning()
+    // optionally apply the selectUserSchema to filter the results
+    // return a single user object not an array
+    const data = selectUserSchema.parse(results[0]) 
+    return res.json({ data })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+
+```
+
+You now have a new source of validation errors that can be thrown by the `parse` method. Let's update the error handling utilities. 
+
+Start with a new type guard for Zod errors:
+
+```typescript
+import { ZodError } from 'zod'
+
+export function isZodError(value: unknown): value is ZodError {
+  return value instanceof ZodError
+}
+
+```
+
+Then update the `handleError` function to handle Zod errors:
+
+```typescript
+import { isPostgresError, isError, isZodError } from './type-guards.js'
+
+export function handleError(error: unknown, res: Response) {
+  if (isZodError(error)) {
+    return res
+      .status(400)
+      .json({ errors: error.issues })
+  }
+ // ... rest of the function
+
+```

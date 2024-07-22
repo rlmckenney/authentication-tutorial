@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
 import { db } from '../db/index.js'
-import { users } from './schema.js'
+import { users, insertUserSchema, selectUserSchema } from './schema.js'
 import { handleError } from '../utils/controller-utils.js'
 
 export async function index(req: Request, res: Response) {
@@ -12,21 +12,22 @@ export async function index(req: Request, res: Response) {
   }
 }
 export async function store(req: Request, res: Response) {
-  // add zod validation
   try {
-    const user = await db.insert(users).values(req.body).returning()
-    return res.json({ data: user })
+    const params = insertUserSchema.parse(req.body)
+    const results = await db.insert(users).values(params).returning()
+    const data = selectUserSchema.parse(results[0])
+    return res.json({ data })
   } catch (error) {
     handleError(error, res)
   }
 }
 
 export async function show(req: Request, res: Response) {
-  res.json({ data: 'ok' })
+  res.json({ data: 'not implemented yet' })
 }
 export async function update(req: Request, res: Response) {
-  res.json({ data: 'ok' })
+  res.json({ data: 'not implemented yet' })
 }
 export async function destroy(req: Request, res: Response) {
-  res.json({ data: 'ok' })
+  res.json({ data: 'not implemented yet' })
 }

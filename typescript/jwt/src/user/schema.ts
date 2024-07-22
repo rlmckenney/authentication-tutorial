@@ -1,6 +1,8 @@
 import { relations } from 'drizzle-orm'
 import { pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { uuidv7 } from 'uuidv7'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
+import { z } from 'zod'
 
 export const users = pgTable('users', {
   id: uuid('id').$defaultFn(uuidv7).primaryKey(),
@@ -45,3 +47,22 @@ export const loginCredentialsRelations = relations(
     }),
   }),
 )
+
+// Schema for inserting a user - can be used to validate API requests
+export const insertUserSchema = createInsertSchema(users, {
+  firstName: z.string().trim().min(1).max(256),
+  lastName: z.string().trim().min(1).max(256),
+  email: z.string().trim().toLowerCase().email().max(256),
+}).pick({
+  firstName: true,
+  lastName: true,
+  email: true,
+})
+
+// Schema for selecting a user - can be used to validate API responses
+// optionallyoOmit createdAt and updatedAt fields from the response
+// by calling selectUserSchema.parse(result) in the controller method.
+export const selectUserSchema = createSelectSchema(users).omit({
+  createdAt: true,
+  updatedAt: true,
+})
