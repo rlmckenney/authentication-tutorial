@@ -219,6 +219,11 @@ const SALT_ROUNDS = Number(process.env.SALT_ROUNDS) || 14
 
 ### 4.2.3 Refactor the User schema module
 
+- remove the `loginCredentials` and `loginCredentialsRelations` definitions
+- import the `loginCredentials` table definition from the new schema module
+- update the `insertUserSchema` to be `storeUserSchema` to keep the naming consistent
+- update the imports and usage of `insertUserSchema` in the user/controller to reflect the new name
+
 ### 4.2.4 Update the db schema imports
 
 You need to add the new table schema to the database connection. Update the master `db/schema.ts` file:

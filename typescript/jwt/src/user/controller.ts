@@ -5,7 +5,7 @@ import { handleError } from '../utils/controller-utils.js'
 import { ResourceNotFoundException } from '../utils/exceptions.js'
 import {
   users,
-  insertUserSchema,
+  storeUserSchema,
   selectUserSchema,
   updateUserSchema,
   userIdSchema,
@@ -22,7 +22,7 @@ export async function index(req: Request, res: Response) {
 
 export async function store(req: Request, res: Response) {
   try {
-    const params = insertUserSchema.parse(req.body)
+    const params = storeUserSchema.parse(req.body)
     const insertedUsers = await db.insert(users).values(params).returning()
     return res.json({ data: selectUserSchema.parse(insertedUsers[0]) })
   } catch (error) {
