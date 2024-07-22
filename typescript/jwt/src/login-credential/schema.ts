@@ -3,10 +3,10 @@ import { pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { uuidv7 } from 'uuidv7'
 import { z } from 'zod'
 import bcrypt from 'bcrypt'
-import { createInsertSchema } from 'drizzle-zod'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { users } from '../user/schema.js'
 
-const SALT_ROUNDS = Number(process.env.SALT_ROUNDS) || 12
+const SALT_ROUNDS = Number(process.env.SALT_ROUNDS) || 14
 
 export const loginCredentials = pgTable('login_credentials', {
   id: uuid('id').$defaultFn(uuidv7).primaryKey(),
@@ -104,3 +104,8 @@ export const updateLoginCredentialSchema = baseSchema
 
 // Schema for parsing input params when selecting a LoginCredential by ID
 export const resourceIdSchema = z.string().uuid()
+
+// Schema for redacting the passwordHash field when returning a LoginCredential
+export const redactedLoginCredentialSchema = createSelectSchema(
+  loginCredentials,
+).omit({ passwordHash: true })

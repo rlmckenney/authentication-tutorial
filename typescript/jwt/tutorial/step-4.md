@@ -246,3 +246,167 @@ export const db = drizzle(queryClient, {
   schema: { ...userSchema, ...loginCredentialSchema },
 })
 ```
+
+### 4.2.5 Implement the `index` controller method
+
+This largely follows the same pattern as the User controller.
+
+```typescript
+export async function index(req: Request, res: Response) {
+  try {
+    const foundCredentials = await db.query.loginCredentials.findMany()
+    return res.json({ data: foundCredentials })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+> [!TIP]
+> That will work for now, but most production apps will need to add pagination and filtering options to this method. We will cover that in a future step.
+
+> [!WARNING]
+> The current implementation returns all of the hashed passwords. YIKES!
+> Let's fix that right now.
+
+You can use the Drizzle `columns` option on the `findMany` method to exclude the passwordHash field from the returned data.
+
+````typescript
+    const foundCredentials = await db.query.loginCredentials.findMany({
+      columns: { passwordHash: false },
+    })
+    ```
+````
+
+### 4.2.6 Implement the `store` controller method
+
+This method will parse the client supplied data, applying the validation rules from the `storeLoginCredentialSchema`, including hashing the password.
+
+The parse params are now safe to insert the data into the database.
+
+```typescript
+export async function store(req: Request, res: Response) {
+  try {
+    const params = await storeLoginCredentialSchema.parseAsync(req.body)
+    const insertedCredential = await db
+      .insert(loginCredentials)
+      .values(params)
+      .returning()
+    return res.json({ data: insertedCredential[0] })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+Again you need to redact the passwordHash field from the returned data. Unfortunately, the `.returning()` method does not have the same `columns` API as used above. This means you can manually specify all of the returned fields, excluding the passwordHash field (and repeat this for the show, update, and destroy methods).
+
+```typescript
+  .returning({
+        id: loginCredentials.id,
+        userId: loginCredentials.userId,
+        loginName: loginCredentials.loginName,
+      })
+```
+
+OR, you can create another Zod schema to validate the returned data before sending it back to the client. This is a good practice to ensure that the data you are sending back is compliant with your API contract.
+
+In the `src/login-credential/schema.ts` file, add a new schema for the returned data:
+
+```typescript
+// Schema for redacting the passwordHash field when returning a LoginCredential
+export const redactedLoginCredentialSchema = createSelectSchema(
+  loginCredentials,
+).omit({ passwordHash: true })
+```
+
+Then in the controller, you can use this schema to validate the returned data. Don't forget to import it at the top of the controller file.
+
+```typescript
+export async function store(req: Request, res: Response) {
+  try {
+    const params = await storeLoginCredentialSchema.parseAsync(req.body)
+    const newCredential = (
+      await db.insert(loginCredentials).values(params).returning()
+    )[0] // There should only be one inserted credential in the array
+    return res.status(201).json({
+      data: redactedLoginCredentialSchema.parse(newCredential),
+    })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+### 4.2.7 Implement the `show` controller method
+
+```typescript
+export async function show(req: Request, res: Response) {
+  try {
+    const id = resourceIdSchema.parse(req.params.id)
+    const foundCredential = await db.query.loginCredentials.findFirst({
+      where: eq(loginCredentials.id, id),
+    })
+    if (!foundCredential) {
+      throw new ResourceNotFoundException('LoginCredential', `id: ${id}`)
+    }
+    return res.json({
+      data: redactedLoginCredentialSchema.parse(foundCredential),
+    })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+### 4.2.8 Implement the `update` controller method
+
+```typescript
+export async function update(req: Request, res: Response) {
+  try {
+    const id = resourceIdSchema.parse(req.params.id)
+    const params = await updateLoginCredentialSchema.parseAsync(req.body)
+    const updatedCredential = (
+      await db
+        .update(loginCredentials)
+        .set(params)
+        .where(eq(loginCredentials.id, id))
+        .returning()
+    )[0]
+    if (!updatedCredential) {
+      throw new ResourceNotFoundException('LoginCredential', `id: ${id}`)
+    }
+    return res.json({
+      data: redactedLoginCredentialSchema.parse(updatedCredential),
+    })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+### 4.2.9 Implement the `destroy` controller method
+
+```typescript
+export async function destroy(req: Request, res: Response) {
+  try {
+    const id = resourceIdSchema.parse(req.params.id)
+    const deletedCredential = (
+      await db
+        .delete(loginCredentials)
+        .where(eq(loginCredentials.id, id))
+        .returning()
+    )[0]
+    if (!deletedCredential) {
+      throw new ResourceNotFoundException('LoginCredentials', `id: ${id}`)
+    }
+    return res.json({
+      data: redactedLoginCredentialSchema.parse(deletedCredential),
+    })
+  } catch (error) {
+    handleError(error, res)
+  }
+}
+```
+
+OK. That's it for the LoginCredential resource. You should now have a working API for managing LoginCredentials. You can test it with `curl` or `Postman` to ensure that everything is working as expected. And don't forget to commit your changes to your git repository.
