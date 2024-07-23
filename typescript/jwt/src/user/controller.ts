@@ -24,7 +24,9 @@ export async function store(req: Request, res: Response) {
   try {
     const params = storeUserSchema.parse(req.body)
     const insertedUsers = await db.insert(users).values(params).returning()
-    return res.json({ data: selectUserSchema.parse(insertedUsers[0]) })
+    return res
+      .status(201)
+      .json({ data: selectUserSchema.parse(insertedUsers[0]) })
   } catch (error) {
     handleError(error, res)
   }
