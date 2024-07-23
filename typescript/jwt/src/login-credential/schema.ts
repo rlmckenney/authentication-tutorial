@@ -52,7 +52,7 @@ export const loginCredentialsRelations = relations(
  * update the database.
  */
 
-const baseSchema = z.object({
+export const baseSchema = z.object({
   userId: z.string().uuid(),
   loginName: z.string().trim().min(6).max(254),
   password: z.string().trim().min(8).max(254),
