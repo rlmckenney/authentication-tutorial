@@ -27,7 +27,7 @@ export async function store(req: Request, res: Response) {
     const params = await storeLoginCredentialSchema.parseAsync(req.body)
     const newCredential = (
       await db.insert(loginCredentials).values(params).returning()
-    )[0] // There should only be one inserted credential in the array
+    )[0] // Postgres returns an array of inserted rows, even if only one row is inserted
     return res.status(201).json({
       data: redactedLoginCredentialSchema.parse(newCredential),
     })

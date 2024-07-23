@@ -158,7 +158,7 @@ const confirmPasswordError = {
 }
 ```
 
-OK, now put it all together to create the `storeLoginCredentialsSchema` and the `updateLoginCredentialsSchema` that you will use in the corresponding controller methods.
+Now put it all together to create the `storeLoginCredentialsSchema` and the `updateLoginCredentialsSchema` that you will use in the corresponding controller methods.
 
 ```typescript
 // Define the type for the SQL insert statement
@@ -194,10 +194,26 @@ export const updateLoginCredentialSchema = baseSchema
 export const resourceIdSchema = z.string().uuid()
 ```
 
+There's a lot happening here! Let's break it down:
+
+1. Each of the exported validation schemas start with the `baseSchema` where all form fields are required. The `updateLoginCredentialsSchema` then applies the `pick()` method to narrow the validation to just the `password` and `passwordConfirm` fields.
+
+2. After the validation rules from the `baseSchema` have been checked, the Zod `refine()` method is called on the resulting schema object. It takes two arguments. The first is a validation function that returns a boolean. The second is an object with Zod error properties.
+
+3. Because you will need to call this from both the `store` and `update` controller methods, the `partialBaseSchema` is created to allow for any of the fields to be optional by the time it reaches the `refinedSchema`. Don't worry the required fields are checked in the `baseSchema` validation _before_ the `refine()` method is called.
+
+4. The `confirmPassword` function is a wrapper around the refinedSchema validator that does the actual comparison to ensure the passwords match. The `confirmPasswordError` object defines the parameters to merge into the Zod error object if the comparison fails.
+
+It seems like a lot of work, but this is a very powerful feature of Zod that allows you to create complex validation rules that are not easily expressed in a simple schema definition. It allows you to:
+
+- locate the validation (business) rules with the object definitions,
+- consistently apply the same validation rules across multiple controller methods,
+- and return the correct types for the parsed data.
+
 ### 4.2.2 Hash the password before returning after validation
 
 > [!IMPORTANT]
-> Notice the `.transform()` method in the `storeLoginCredentialSchema` and `updateLoginCredentialSchema`. This is where you hash the password before storing it in the database. In each case, the final returned object is safe to pass into the database query.
+> Notice the `.transform()` method in the `storeLoginCredentialSchema` and `updateLoginCredentialSchema`. This is where you hash the password before storing it in the database. In each case, the final returned object is safe to pass directly into the database query.
 
 You need to install the [bcrypt](https://www.npmjs.com/package/bcrypt) library in your project. It is a widely used library for hashing passwords with implementations in most popular programming languages. You can read more about how it works from this Wikipedia article: [bcrypt](https://en.wikipedia.org/wiki/Bcrypt).
 
@@ -208,14 +224,24 @@ pnpm add --save-dev @types/bcrypt
 
 Import it into the controller module and set the number of salt rounds to use when hashing the password. The higher the number, the longer it takes to generate. The algorithm is designed to be slow to make it harder for attackers to brute force the password hash. For more details on how this works, see [A Note on Rounds](https://www.npmjs.com/package/bcrypt#a-note-on-rounds).
 
-The default number of rounds is 10, but you can increase it to 13 or 15 for production.
-I like to use 14, which should be about 1.5 seconds to generate a hash. You probably want to inject this value from an environment variable, so you can adjust it to your runtime environment without modifying the code.
+The default number of rounds is 10, but you can increase it to between 13 and 15 for production.
+I like to use 14, which should be about 1.5 seconds to generate a hash. You probably want to inject this value from an environment variable, so that you can adjust it to the compute power of your runtime environment without modifying the code.
 
 ```typescript
 import bcrypt from 'bcrypt'
 
 const SALT_ROUNDS = Number(process.env.SALT_ROUNDS) || 14
 ```
+
+#### How does that transform work?
+
+The `transform()` method is a powerful feature of Zod that allows you to modify the data before it is returned from the validation process. This is useful when you need to do some data transformation before storing it in the database. In this case, you are hashing the password before storing it in the database.
+
+The `transform()` method takes a function that receives the parsed (validated) data and returns the transformed data. The function can be synchronous or asynchronous. Asynchronous in this case, since you to `await` the hash method of the `bcrypt` library.
+
+> [!IMPORTANT]
+> You are responsible for the content and the shape (type) of the data that is returned from the `transform()` method. **This is powerful, but use it carefully.**
+> Notice that the code defines two different types for the `InsertSchema` and `UpdateSchema` objects. This is because the `store` method needs the `userId`, `loginName`, and `passwordHash` fields, while the `update` method only needs to send the `passwordHash` to the database.
 
 ### 4.2.3 Refactor the User schema module
 
@@ -269,7 +295,7 @@ export async function index(req: Request, res: Response) {
 > The current implementation returns all of the hashed passwords. YIKES!
 > Let's fix that right now.
 
-You can use the Drizzle `columns` option on the `findMany` method to exclude the passwordHash field from the returned data.
+You can use the Drizzle `columns` option on the `findMany` method to exclude the passwordHash field from the returned data. This method modifies the SQL query, the sensitive data is never fetched from the database, and the data does not need to be filtered in the application code.
 
 ````typescript
     const foundCredentials = await db.query.loginCredentials.findMany({
@@ -282,22 +308,24 @@ You can use the Drizzle `columns` option on the `findMany` method to exclude the
 
 This method will parse the client supplied data, applying the validation rules from the `storeLoginCredentialSchema`, including hashing the password.
 
-The parse params are now safe to insert the data into the database.
+The parsed params are now safe to insert into the database. If any field does not pass validation, an error will be thrown and caught by the `handleError` function.
 
 ```typescript
 export async function store(req: Request, res: Response) {
   try {
     const params = await storeLoginCredentialSchema.parseAsync(req.body)
-    const insertedCredential = await db
-      .insert(loginCredentials)
-      .values(params)
-      .returning()
-    return res.json({ data: insertedCredential[0] })
+    const newCredential = (
+      await db.insert(loginCredentials).values(params).returning()
+    )[0] // Postgres returns an array of inserted rows, even if only one row is inserted
+    return res.status(201).json({ data: newCredential })
   } catch (error) {
     handleError(error, res)
   }
 }
 ```
+
+> [!TIP]
+> It is standard practice to return a `201 Created` status code when a new resource is created. Without the `res.status(201)` method, the default status `200` would be sent.
 
 Again you need to redact the passwordHash field from the returned data. Unfortunately, the `.returning()` method does not have the same `columns` API as used above. This means you can manually specify all of the returned fields, excluding the passwordHash field (and repeat this for the show, update, and destroy methods).
 
@@ -309,7 +337,7 @@ Again you need to redact the passwordHash field from the returned data. Unfortun
       })
 ```
 
-OR, you can create another Zod schema to validate the returned data before sending it back to the client. This is a good practice to ensure that the data you are sending back is compliant with your API contract.
+**OR,** a better option is to use a `drizzle-zod` helper function to create another Zod schema for validating the returned data before sending it back to the client. This is a good practice to ensure that the data you are sending back is compliant with your API contract.
 
 In the `src/login-credential/schema.ts` file, add a new schema for the returned data:
 
@@ -328,7 +356,7 @@ export async function store(req: Request, res: Response) {
     const params = await storeLoginCredentialSchema.parseAsync(req.body)
     const newCredential = (
       await db.insert(loginCredentials).values(params).returning()
-    )[0] // There should only be one inserted credential in the array
+    )[0] // Postgres returns an array of inserted rows, even if only one row is inserted
     return res.status(201).json({
       data: redactedLoginCredentialSchema.parse(newCredential),
     })
@@ -410,3 +438,6 @@ export async function destroy(req: Request, res: Response) {
 ```
 
 OK. That's it for the LoginCredential resource. You should now have a working API for managing LoginCredentials. You can test it with `curl` or `Postman` to ensure that everything is working as expected. And don't forget to commit your changes to your git repository.
+
+> [!TIP]
+> If your project is not working as expected and you need some help finding the problem, you can always refer to the `typescript-jwt-step-4` branch of this repo to see a working example.
