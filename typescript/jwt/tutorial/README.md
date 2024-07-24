@@ -76,5 +76,4 @@ When using JWTs, it's important to consider security best practices to prevent c
 
 ## TODO:
 
-- add config to handle environment variables
 - add tests

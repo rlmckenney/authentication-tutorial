@@ -19,6 +19,9 @@ export const users = pgTable('users', {
   ),
 })
 
+const userSchema = createSelectSchema(users)
+export type User = z.infer<typeof userSchema>
+
 export const usersRelations = relations(users, ({ one }) => ({
   loginCredentials: one(loginCredentials),
 }))

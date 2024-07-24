@@ -439,10 +439,107 @@ That feels so much better! It is safer and makes it easier to manage updates to 
 
 ### 6.5 Refactor to extract a middleware module
 
-Most of the code in this route handler is concerned with verifying the JWT and loading the user profile. You do not want to be repeating that for every protected resource, which is likely most of your application.
+You have made some really great refactoring improvements. Now let's take it a step further.
+
+Most of the code in the protected route handler is concerned with verifying the JWT and loading the user profile. You do not want to be repeating that for every protected resource, which is likely most of your application.
 
 Extract the common code into a middleware function that can be used on any route that requires the user to have been authenticated.
 
-### 6.6 Refactor to encapsulate the login/logout logic
+> [!NOTE]
+> What is middleware? Middleware is a function that executes before the request reaches the controller method. It has access to the request and response objects. It can execute any code, make changes to the request and response objects, end the request-response cycle, and call the next middleware function in the stack.
+> Read more in the Express.js documentation: [Writing middleware for use in Express apps](https://expressjs.com/en/guide/writing-middleware.html)
 
-`SALT_ROUNDS` was only being used in the `access-token/controller` to create the `badHash` constant. What if you make the `login-credential` model (schema) responsible for creating the `badHash` constant?
+### 6.5.1 Create a new middleware module
+
+Create a new file `src/middleware/jwtAuthenticatedUser.ts`. This file will export a middleware function that will verify the JWT and load the user profile and attach it to the request object for use in the route handler, as needed.
+
+You can start by copying the same code from the protected route handler, but you will need to modify it slightly to work as middleware.
+
+The first change is the function signature. Middleware functions take three arguments: `req`, `res`, and `next`. The `next` function is a callback that tells Express to move on to the next middleware function in the stack, or finally the route handler.
+
+```typescript
+import { Request, Response, NextFunction } from 'express'
+// ...
+export async function jwtAuthenticatedUser(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+// ...
+```
+
+Now attach the authenticated user to the request object so it can be accessed in the route handler and replace the return response with a call to the `next` function.
+
+```typescript
+    // Attach the authenticated user to the request object
+    req.currentUser = currentUser
+    next()
+  } catch (error) {
+    console.info('JWT verification failed:', error)
+    res.status(401).json(unauthorizedResponse)
+  }
+}
+```
+
+OK, that is the correct logic, but TypeScript is going to squawk about the `currentUser` property on the `req` object. You need to extend the `Request` interface to include the `currentUser` property.
+
+### 6.5.2 Extend the Express Request interface
+
+Export a `User` type from the `user/schema.js` file.
+
+```typescript
+const userSchema = createSelectSchema(users)
+export type User = z.infer<typeof userSchema>
+```
+
+Create a new global type declaration file `src/types/express.d.ts` and add the following code:
+
+```typescript
+import type { User } from '../user/schema.js'
+
+declare global {
+  namespace Express {
+    interface Request {
+      currentUser?: User
+    }
+  }
+}
+```
+
+> [!NOTE]
+> By placing the type declaration in the `src/types` folder with a file with a `.d.ts` extension, TypeScript will automatically include it in your project without needing to explicitly import it.
+
+### 6.5.3 Register the middleware function
+
+Tell the router to use the middleware function. Update the `protected-resource/router.ts` file to look like this:
+
+```typescript
+import { Router } from 'express'
+import * as controller from './controller.js'
+import { jwtAuthenticatedUser } from '../middleware/jwt-authenticated-user.js'
+
+export const protectedResourceRouter = Router()
+protectedResourceRouter.use(jwtAuthenticatedUser)
+
+// Base URI: /api/protected-resource -- set in server.ts
+protectedResourceRouter.route('/').get(controller.index)
+```
+
+### 6.5.4 Clean up the controller method
+
+Now that the middleware function is handling the JWT verification and user profile loading, you can simplify the controller method. You can remove almost everything.
+
+The controller methods can now focus on their core domain responsibility.
+
+```typescript
+import { Request, Response } from 'express'
+
+export async function index(req: Request, res: Response) {
+  return res.json({
+    data: {
+      message: 'You have accessed a protected resource',
+      currentUser: req.currentUser,
+    },
+  })
+}
+```
