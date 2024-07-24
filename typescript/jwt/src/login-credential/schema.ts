@@ -5,8 +5,7 @@ import { z } from 'zod'
 import bcrypt from 'bcrypt'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { users } from '../user/schema.js'
-
-const SALT_ROUNDS = Number(process.env.SALT_ROUNDS) || 14
+import { SALT_ROUNDS } from '../config.js'
 
 export const loginCredentials = pgTable('login_credentials', {
   id: uuid('id').$defaultFn(uuidv7).primaryKey(),

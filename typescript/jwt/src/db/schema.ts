@@ -1,2 +1,2 @@
-export * as userSchema from '../user/schema.js'
-export * as loginCredentialSchema from '../login-credential/schema.js'
+export * from '../user/schema.js'
+export * from '../login-credential/schema.js'

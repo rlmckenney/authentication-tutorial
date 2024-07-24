@@ -1,19 +1,12 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import type { Secret, Algorithm } from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
+import { JWT, SALT_ROUNDS } from '../config.js'
 import { baseSchema, loginCredentials } from '../login-credential/schema.js'
 
 const loginParamsSchema = baseSchema.pick({ loginName: true, password: true })
-const SALT_ROUNDS = Number(process.env.SALT_ROUNDS) || 14
-const JWT = {
-  secret: (process.env.JWT_SECRET || 'notSoSecret') as Secret,
-  algorithm: (process.env.JWT_ALGORITHM || 'HS256') as Algorithm,
-  idExpiresIn: process.env.JWT_ID_EXPIRES_IN || '15m',
-  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '2d',
-} as const
 
 export async function store(req: Request, res: Response) {
   const { loginName, password } = loginParamsSchema.parse(req.body)
