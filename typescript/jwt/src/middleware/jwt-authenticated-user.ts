@@ -2,58 +2,63 @@ import { eq } from 'drizzle-orm'
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
-import { jwtPayloadSchema } from '../access-token/schema.js'
+import { isTokenRevoked, jwtPayloadSchema } from '../access-token/schema.js'
 import { JWT } from '../config.js'
 import { db } from '../db/index.js'
 import { users } from '../user/schema.js'
-
-const unauthorizedResponse = {
-  errors: [
-    {
-      status: '401',
-      title: 'Unauthorized',
-      detail: 'Missing or invalid Authorization header',
-    },
-  ],
-}
 
 export async function jwtAuthenticatedUser(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  // Extract the token from the Authorization header
-  const [authorizationType, token] = req.headers.authorization?.split(' ') ?? []
-  if (authorizationType !== 'Bearer' || !token) {
-    console.info('Missing or invalid Authorization header')
-    return res.status(401).json(unauthorizedResponse)
-  }
-
-  // Verify the token and extract the payload
   try {
+    // Extract the token from the Authorization header
+    const [authorizationType, token] =
+      req.headers.authorization?.split(' ') ?? []
+    if (authorizationType !== 'Bearer' || !token) {
+      throw new Error('Missing or invalid Authorization header')
+    }
+    // Verify the token and extract the payload
     const rawPayload = jwt.verify(token, JWT.secret)
     const payload = jwtPayloadSchema.parse(rawPayload)
+    // Check if the token has been revoked
+    if (await isTokenRevoked(payload)) {
+      throw new Error(`Token has been revoked: ${payload.jti}`)
+    }
+    // Check if the token type is allowed
     if (payload.tokenType === 'refresh' && !req.refreshTokenIsAllowed) {
-      console.info('Invalid token type:', payload.tokenType)
-      return res.status(401).json(unauthorizedResponse)
+      throw new Error(`Invalid token type: ${payload.tokenType}`)
     }
     // Load the user from the database
     const currentUser = await db.query.users.findFirst({
       where: eq(users.id, payload.userId),
     })
     if (!currentUser) {
-      console.error(
-        'Unable to retrieve User from the database with the provided JWT payload',
-        payload,
+      throw new Error(
+        `Unable to get User from the database with the userId: ${payload.userId}`,
       )
-      return res.status(401).json(unauthorizedResponse)
     }
     // Attach the authenticated user to the request object
     req.currentUser = currentUser
     req.jwtPayload = payload
     next()
   } catch (error) {
-    console.info('JWT verification failed:', error)
-    res.status(401).json(unauthorizedResponse)
+    if (error instanceof Error) {
+      console.info(
+        `[jwtAuthenticatedUser] JWT verification failed: ${error.message}`,
+      )
+    } else {
+      console.warn('[jwtAuthenticatedUser] Unknown error:', error)
+    }
+    res.status(401).json({
+      errors: [
+        {
+          status: '401',
+          title: 'Unauthorized',
+          detail: 'Missing or invalid Authorization header',
+        },
+      ],
+    })
   }
 }

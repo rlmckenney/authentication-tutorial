@@ -1,6 +1,6 @@
 # Handling JWTs in TypeScript
 
-## 7. Refresh a JWT
+## 7. Refresh a JWT token pair
 
 One of the choices you have to make when working with JWTs is how long they should be valid. If you make them too short, users will be logged out too frequently. If you make them too long, the risk of a stolen token being used by an attacker increases. One way to balance these concerns is to use short-lived tokens and refresh them periodically.
 

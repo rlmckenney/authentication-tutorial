@@ -1,12 +1,18 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import { uuidv7 } from 'uuidv7'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { JWT, SALT_ROUNDS } from '../config.js'
 import { baseSchema, loginCredentials } from '../login-credential/schema.js'
-import { type JWTPayload, refreshRequestBodySchema } from './schema.js'
+import { handleError } from '../utils/controller-utils.js'
+import type { JWTPayload } from './schema.js'
+import {
+  generateTokens,
+  jwtPayloadSchema,
+  refreshRequestBodySchema,
+  invalidateToken,
+} from './schema.js'
 
 const loginParamsSchema = baseSchema.pick({ loginName: true, password: true })
 
@@ -83,20 +89,11 @@ export async function replace(req: Request, res: Response) {
 }
 
 export async function destroy(req: Request, res: Response) {
-  res.json({ data: 'destroy' })
-}
-
-function generateTokens(userId: string) {
-  const jwtid = uuidv7()
-  const accessToken = jwt.sign({ userId, tokenType: 'access' }, JWT.secret, {
-    expiresIn: JWT.idExpiresIn,
-    algorithm: JWT.algorithm,
-    jwtid: jwtid,
-  })
-  const refreshToken = jwt.sign({ userId, tokenType: 'refresh' }, JWT.secret, {
-    expiresIn: JWT.refreshExpiresIn,
-    algorithm: JWT.algorithm,
-    jwtid: jwtid,
-  })
-  return { accessToken, refreshToken }
+  try {
+    const payload = jwtPayloadSchema.parse(req.jwtPayload)
+    invalidateToken(payload)
+    res.status(204).send() // No Content, successful deletion
+  } catch (error) {
+    handleError(error, res)
+  }
 }

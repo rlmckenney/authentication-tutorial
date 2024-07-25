@@ -71,8 +71,8 @@ When using JWTs, it's important to consider security best practices to prevent c
 4. [Create the LoginCredential resources](step-4.md)
 5. [Handle the login flow: Create a JWT](step-5.md)
 6. [Verify a JWT on protected routes](step-6.md)
-7. Refresh a JWT
-8. Revoke a JWT
+7. [Refresh a JWT token pair](step-7.md)
+8. [Logout and Revoke a JWT pair](step-8.md)
 
 ## TODO:
 
