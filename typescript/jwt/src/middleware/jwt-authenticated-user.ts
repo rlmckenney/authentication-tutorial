@@ -31,7 +31,12 @@ export async function jwtAuthenticatedUser(
 
   // Verify the token and extract the payload
   try {
-    const payload = jwtPayloadSchema.parse(jwt.verify(token, JWT.secret))
+    const rawPayload = jwt.verify(token, JWT.secret)
+    const payload = jwtPayloadSchema.parse(rawPayload)
+    if (payload.tokenType === 'refresh' && !req.refreshTokenIsAllowed) {
+      console.info('Invalid token type:', payload.tokenType)
+      return res.status(401).json(unauthorizedResponse)
+    }
     // Load the user from the database
     const currentUser = await db.query.users.findFirst({
       where: eq(users.id, payload.userId),
@@ -45,6 +50,7 @@ export async function jwtAuthenticatedUser(
     }
     // Attach the authenticated user to the request object
     req.currentUser = currentUser
+    req.jwtPayload = payload
     next()
   } catch (error) {
     console.info('JWT verification failed:', error)

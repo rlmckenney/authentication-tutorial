@@ -1,10 +1,12 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import { uuidv7 } from 'uuidv7'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { JWT, SALT_ROUNDS } from '../config.js'
 import { baseSchema, loginCredentials } from '../login-credential/schema.js'
+import { type JWTPayload, refreshRequestBodySchema } from './schema.js'
 
 const loginParamsSchema = baseSchema.pick({ loginName: true, password: true })
 
@@ -31,24 +33,70 @@ export async function store(req: Request, res: Response) {
     })
   }
 
-  const jwtPayload = { userId: loginCredential.userId }
-
-  const accessToken = jwt.sign(jwtPayload, JWT.secret, {
-    expiresIn: JWT.idExpiresIn,
-    algorithm: JWT.algorithm,
-  })
-  const refreshToken = jwt.sign(jwtPayload, JWT.secret, {
-    expiresIn: JWT.refreshExpiresIn,
-    algorithm: JWT.algorithm,
-  })
-
-  res.json({ data: { accessToken, refreshToken } })
+  res.json({ data: generateTokens(loginCredential.userId) })
 }
 
 export async function replace(req: Request, res: Response) {
-  res.json({ data: 'replace' })
+  // Add a type narrowing condition to tell TypeScript that req.jwtPayload is
+  // not undefined. If it is missing, the middleware was not correctly registered.
+  if (req.jwtPayload === undefined) {
+    return res.status(500).json({
+      errors: [
+        {
+          status: '500',
+          title: 'Internal Server Error',
+          detail: 'Missing jwtPayload. Check middleware registration.',
+        },
+      ],
+    })
+  }
+  try {
+    // This is the second token of the accessToken/refreshToken pair
+    // The primary token is the still valid token in the Authorization header
+    const { token } = refreshRequestBodySchema.parse(req.body)
+    const verifiedPayload = jwt.verify(token, JWT.secret, {
+      algorithms: [JWT.algorithm],
+      jwtid: req.jwtPayload.jti,
+      ignoreExpiration: true,
+    }) as JWTPayload
+    if (verifiedPayload.userId !== req.jwtPayload.userId) {
+      throw new Error('Token pair mismatch: userId')
+    }
+    if (verifiedPayload.tokenType === req.jwtPayload.tokenType) {
+      throw new Error('Token pair mismatch: tokenType')
+    }
+    // TODO: invalidate the token pair using the jti claim
+    res.json({ data: generateTokens(req.jwtPayload.userId) })
+  } catch (error) {
+    console.error('JWT verification failed:', error)
+    // TODO: invalidate the token pair using the jti claim
+    res.status(401).json({
+      errors: [
+        {
+          status: '401',
+          title: 'Unauthorized',
+          detail: 'Invalid refresh token',
+        },
+      ],
+    })
+  }
 }
 
 export async function destroy(req: Request, res: Response) {
   res.json({ data: 'destroy' })
+}
+
+function generateTokens(userId: string) {
+  const jwtid = uuidv7()
+  const accessToken = jwt.sign({ userId, tokenType: 'access' }, JWT.secret, {
+    expiresIn: JWT.idExpiresIn,
+    algorithm: JWT.algorithm,
+    jwtid: jwtid,
+  })
+  const refreshToken = jwt.sign({ userId, tokenType: 'refresh' }, JWT.secret, {
+    expiresIn: JWT.refreshExpiresIn,
+    algorithm: JWT.algorithm,
+    jwtid: jwtid,
+  })
+  return { accessToken, refreshToken }
 }

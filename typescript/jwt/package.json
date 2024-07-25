@@ -17,7 +17,7 @@
     "start": "node dist/server.js",
     "dev:tsc": "tsc --watch --preserveWatchOutput",
     "dev:node": "node --enable-source-maps --watch dist/server.js",
-    "dev": "pnpm run \"/dev:/\"",
+    "dev": "pnpm run -r --reporter append-only --loglevel debug \"/dev:/\"",
     "test": "JITI_SOURCE_MAPS=true node --require jiti/register --test src/**/*.test.ts",
     "lint": "eslint src/**/*.ts",
     "db:generate": "drizzle-kit generate",
