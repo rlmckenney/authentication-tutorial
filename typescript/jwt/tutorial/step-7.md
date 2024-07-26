@@ -188,7 +188,7 @@ export async function replace(req: Request, res: Response) {
     // create a new refreshToken
     res.json({ data: 'replace' })
   } catch (error) {
-    console.error('JWT verification failed:', error)
+    console.info('JWT verification failed:', error)
     // TODO: invalidate the token pair using the jti claim
     res.status(401).json({
       errors: [

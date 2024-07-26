@@ -1,54 +1,17 @@
-import type { Response } from 'express'
-import {
-  isPostgresError,
-  isError,
-  isZodError,
-  isHttpError,
-} from './type-guards.js'
-
 /**
- * Error handler for controller route handler methods
- * Returns a JSON response similar to JSONAPI (but needs more work to be fully compliant).
+ * Get a human-readable error message from an error
+ * CREDIT: Kent C. Dodds
  */
-export function handleError(error: unknown, res: Response) {
-  if (isZodError(error)) {
-    return res.status(400).json({ errors: error.issues })
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
   }
-
-  if (isPostgresError(error)) {
-    if (error.code === '23505') {
-      return res.status(400).json({
-        errors: [
-          {
-            title: 'Validation Error',
-            message: 'That email is already registered.',
-          },
-        ],
-      })
-    }
-    return res
-      .status(500)
-      .json({ errors: [{ title: 'Database Error', message: error.detail }] })
+  if (typeof error === 'string') {
+    return error
   }
-
-  if (isHttpError(error)) {
-    return res
-      .status(error.statusCode)
-      .json({ errors: [{ title: error.status, message: error.message }] })
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
   }
-
-  if (isError(error)) {
-    return res
-      .status(500)
-      .json({ errors: [{ title: 'Server Error', message: error.message }] })
-  }
-
-  return res.status(500).json({
-    errors: [
-      {
-        title: 'Server Error',
-        message: 'Sorry, an unexpected error occured.',
-      },
-    ],
-  })
 }

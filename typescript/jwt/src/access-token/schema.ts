@@ -37,7 +37,8 @@ export function generateTokens(userId: string) {
 }
 
 export async function invalidateToken({ jti, exp }: JWTPayload) {
-  return redis.set(`revoked-jwt:${jti}`, 'revoked', 'EX', exp + 60) // add 60 seconds
+  const timestamp = new Date().toISOString()
+  return redis.set(`revoked-jwt:${jti}`, timestamp, 'EX', exp + 60, 'NX')
 }
 export async function isTokenRevoked({ jti }: JWTPayload) {
   return redis.exists(`revoked-jwt:${jti}`)

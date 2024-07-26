@@ -1,5 +1,11 @@
 # Handling JWTs in TypeScript
 
+## Approach
+
+This tutorial is not meant to be the shortest straight line to a working solution. Instead, it will guide you through building a simple JWT authentication system in TypeScript, focusing on the key concepts and best practices along the way. It will include explanations of the decisions made and the trade-offs involved.
+
+It will take an incremental approach, and then refactor and improve the code as needed. That is how you work in the real world, after all -- right?.
+
 ## Functional Overview
 
 You will build a simple JWT (JSON Web Token) authentication system in TypeScript. The system will allow users to authenticate by providing a username and password, and then issue a JWT that can be used to prove their identity when accessing protected resources.
@@ -73,7 +79,6 @@ When using JWTs, it's important to consider security best practices to prevent c
 6. [Verify a JWT on protected routes](step-6.md)
 7. [Refresh a JWT token pair](step-7.md)
 8. [Logout and Revoke a JWT pair](step-8.md)
-
-## TODO:
-
-- add tests
+9. [Improve login-credential security](step-9.md)
+10. [Final clean-up](step-10.md)
+11. [What's next?](step-11.md)

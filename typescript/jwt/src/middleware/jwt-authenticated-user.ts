@@ -6,6 +6,7 @@ import { isTokenRevoked, jwtPayloadSchema } from '../access-token/schema.js'
 import { JWT } from '../config.js'
 import { db } from '../db/index.js'
 import { users } from '../user/schema.js'
+import { getErrorMessage } from '../utils/controller-utils.js'
 
 export async function jwtAuthenticatedUser(
   req: Request,
@@ -44,13 +45,9 @@ export async function jwtAuthenticatedUser(
     req.jwtPayload = payload
     next()
   } catch (error) {
-    if (error instanceof Error) {
-      console.info(
-        `[jwtAuthenticatedUser] JWT verification failed: ${error.message}`,
-      )
-    } else {
-      console.warn('[jwtAuthenticatedUser] Unknown error:', error)
-    }
+    console.info(
+      `[jwtAuthenticatedUser] JWT verification failed: ${getErrorMessage(error)}`,
+    )
     res.status(401).json({
       errors: [
         {

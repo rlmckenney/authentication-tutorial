@@ -1,7 +1,6 @@
-import type { Request, Response } from 'express'
+import type { NextFunction, Request, Response } from 'express'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { handleError } from '../utils/controller-utils.js'
 import { ResourceNotFoundException } from '../utils/exceptions.js'
 import {
   users,
@@ -11,16 +10,16 @@ import {
   userIdSchema,
 } from './schema.js'
 
-export async function index(req: Request, res: Response) {
+export async function index(req: Request, res: Response, next: NextFunction) {
   try {
     const foundUsers = await db.query.users.findMany()
     return res.json({ data: foundUsers })
   } catch (error) {
-    handleError(error, res)
+    next(error)
   }
 }
 
-export async function store(req: Request, res: Response) {
+export async function store(req: Request, res: Response, next: NextFunction) {
   try {
     const params = storeUserSchema.parse(req.body)
     const insertedUsers = await db.insert(users).values(params).returning()
@@ -28,11 +27,11 @@ export async function store(req: Request, res: Response) {
       .status(201)
       .json({ data: selectUserSchema.parse(insertedUsers[0]) })
   } catch (error) {
-    handleError(error, res)
+    next(error)
   }
 }
 
-export async function show(req: Request, res: Response) {
+export async function show(req: Request, res: Response, next: NextFunction) {
   try {
     const id = userIdSchema.parse(req.params.id)
     const foundUser = await db.query.users.findFirst({
@@ -41,11 +40,11 @@ export async function show(req: Request, res: Response) {
     if (!foundUser) throw new ResourceNotFoundException('User', `id: ${id}`)
     return res.json({ data: foundUser })
   } catch (error) {
-    handleError(error, res)
+    next(error)
   }
 }
 
-export async function update(req: Request, res: Response) {
+export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const id = userIdSchema.parse(req.params.id)
     const params = updateUserSchema.parse(req.body)
@@ -59,11 +58,11 @@ export async function update(req: Request, res: Response) {
     }
     return res.json({ data: updatedUsers[0] })
   } catch (error) {
-    handleError(error, res)
+    next(error)
   }
 }
 
-export async function destroy(req: Request, res: Response) {
+export async function destroy(req: Request, res: Response, next: NextFunction) {
   try {
     const id = userIdSchema.parse(req.params.id)
     const deletedUsers = await db
@@ -75,6 +74,6 @@ export async function destroy(req: Request, res: Response) {
     }
     return res.json({ data: deletedUsers[0] })
   } catch (error) {
-    handleError(error, res)
+    next(error)
   }
 }

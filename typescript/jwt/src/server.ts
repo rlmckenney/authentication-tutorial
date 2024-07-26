@@ -5,6 +5,7 @@ import { userRouter } from './user/router.js'
 import { loginCredentialRouter } from './login-credential/router.js'
 import { accessTokenRouter } from './access-token/router.js'
 import { protectedResourceRouter } from './protected/router.js'
+import { errorHandler } from './middleware/error-handler.js'
 /**
  * Create a simple Express router application.
  */
@@ -17,6 +18,9 @@ app.use('/api/users', userRouter)
 app.use('/api/login-credentials', loginCredentialRouter)
 app.use('/api/access-tokens', accessTokenRouter)
 app.use('/api/protected-resource', protectedResourceRouter)
+
+// Error handling middleware must go last.
+app.use(errorHandler)
 
 /**
  * Create HTTP server.

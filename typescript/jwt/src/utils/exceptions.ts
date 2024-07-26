@@ -15,6 +15,46 @@ export class HTTPException extends Error {
       Error.captureStackTrace(this, this.constructor)
     }
   }
+
+  toJSONAPI() {
+    const errors: JSONAPIError[] = [
+      {
+        status: String(this.statusCode),
+        title: this.status,
+        detail: this.message,
+      },
+    ]
+    return { errors }
+  }
+}
+
+interface JSONAPIError {
+  title: string
+  detail: string
+  status?: string
+  code?: string
+  source?: {
+    pointer?: string
+    parameter?: string
+    header?: string
+  }
+  meta?: Record<string, string | number | boolean>
+}
+
+export class ValidationException extends HTTPException {
+  constructor(public issues: JSONAPIError[]) {
+    super(400, 'Validation Error', 'One or more validation errors occurred')
+    this.issues = issues
+
+    // Set the prototype explicitly
+    Object.setPrototypeOf(this, ValidationException.prototype)
+  }
+
+  override toJSONAPI() {
+    return {
+      errors: this.issues,
+    }
+  }
 }
 
 export class ResourceNotFoundException extends HTTPException {
@@ -26,3 +66,21 @@ export class ResourceNotFoundException extends HTTPException {
     Object.setPrototypeOf(this, ResourceNotFoundException.prototype)
   }
 }
+
+export class InternalServerErrorException extends HTTPException {
+  constructor(message: string, title: string = 'Internal Server Error') {
+    super(500, title, message)
+
+    // Set the prototype explicitly
+    Object.setPrototypeOf(this, InternalServerErrorException.prototype)
+  }
+}
+
+// HTTP status codes and standard messages
+// const errorMap = new Map<number, string>([
+//   [400, 'Bad Request'],
+//   [401, 'Unauthorized'],
+//   [403, 'Forbidden'],
+//   [404, 'Not Found'],
+//   [500, 'Internal Server Error'],
+// ])

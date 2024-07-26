@@ -3,6 +3,8 @@ import { pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { uuidv7 } from 'uuidv7'
 import { z } from 'zod'
 import bcrypt from 'bcrypt'
+import { eq } from 'drizzle-orm'
+import { db } from '../db/index.js'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { users } from '../user/schema.js'
 import { SALT_ROUNDS } from '../config.js'
@@ -108,3 +110,21 @@ export const resourceIdSchema = z.string().uuid()
 export const redactedLoginCredentialSchema = createSelectSchema(
   loginCredentials,
 ).omit({ passwordHash: true })
+
+export async function getUserIdWithCredentials(
+  loginName: string,
+  password: string,
+) {
+  // db returns undefined if not found
+  const loginCredential = await db.query.loginCredentials.findFirst({
+    where: eq(loginCredentials.loginName, loginName),
+  })
+  const badHash = `$2b$${SALT_ROUNDS}$invalidusernameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+  const passwordHash = loginCredential?.passwordHash ?? badHash
+
+  const passwordsDidMatch = await bcrypt.compare(password, passwordHash)
+  if (!loginCredential || !passwordsDidMatch) {
+    throw new Error('Invalid login credentials')
+  }
+  return loginCredential.userId
+}
