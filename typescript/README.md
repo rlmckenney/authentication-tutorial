@@ -3,7 +3,8 @@
 > [!NOTE]
 >
 > \* \* \* \* \* \* WIP \* \* \* \* \* \*
-> This is very much a work in progress. The JWT implementation is the most complete at the moment. Other implementations are coming soon.
+>
+> This is very much a work in progress. The [JWT implementation](./jwt/README.md) is the most complete at the moment. Other implementations are coming soon.
 
 This repository is meant to be a teaching aid and contains reference implementations for various authentication mechanisms. They are meant to be used as a learning tool to understand how various authentication mechanisms work. They are not fully battle hardened for used in production.
 
