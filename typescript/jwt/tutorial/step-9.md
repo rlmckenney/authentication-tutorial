@@ -2,7 +2,7 @@
 
 ## 9. Improve security on login-credential/controller
 
-### 9.1 Protect routes
+### 9.1 Protect additional routes
 
 ### 9.2 Invalidate tokens on password change
 

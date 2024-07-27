@@ -883,3 +883,10 @@ curl -s -X POST http://localhost:3000/api/login-credentials \
 ```
 
 Great! Now the error handling is much cleaner and more consistent across the application.
+
+### 8.8 Summary
+
+You are doing great! You have completed the logout and token invalidation functionality. You have also completed a significant refactoring to improved the error handling in the application.
+
+Next up, you will protect additional routes and add more security features.
+[Continue to Step 9](./step-9.md)
